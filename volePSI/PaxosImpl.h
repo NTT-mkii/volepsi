@@ -2726,6 +2726,8 @@ namespace volePSI
 		libdivide::libdivide_u64_t divider = libdivide::libdivide_u64_gen(mNumBins);
 		AES hasher(mSeed);
 
+		std::vector<PRNG*> prngs(numThreads, nullptr);
+
 		std::atomic<u64> numDone(0);
 		std::promise<void> hashingDoneProm;
 		auto hashingDoneFu = hashingDoneProm.get_future().share();
@@ -2926,10 +2928,16 @@ namespace volePSI
 				}
 
 				paxos.setInput(rows, hashes, cols, colBacking, colWeights);
-				paxos.encode(values, output, h, prng);
+				paxos.encode(values, output, h, prngs[thrdIdx]);
 
 			}
 		};
+
+		if(prng)
+		{
+			for (u64 i = 0; i < prngs.size(); ++i)
+				prngs[i]=new PRNG(prng->get<block>());
+		}
 
 		std::vector<std::thread> thrds(numThreads - 1);
 
@@ -2940,6 +2948,12 @@ namespace volePSI
 
 		for (u64 i = 0; i < thrds.size(); ++i)
 			thrds[i].join();
+
+		if(prng)
+		{
+			for (u64 i = 0; i < prngs.size(); ++i)
+				delete prngs[i];
+		}
 	}
 
 	template<typename ValueType>
